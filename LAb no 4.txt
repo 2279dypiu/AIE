@@ -1,0 +1,83 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.preprocessing import LabelEncoder
+
+from sklearn.metrics import r2_score, mean_squared_error
+
+
+df = pd.read_csv(r"C:\Users\Tuf_F15\Desktop\college PDF\4th-SEM7\AIE\LABS\biased_gender_loans.csv")  # adjust path if needed
+print("Dataset loaded successfully!")
+print(df.head())
+
+for col in df.select_dtypes(include=['object']).columns:
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col])
+
+print("\nEncoded dataset preview:")
+print(df.head())
+
+target_col = 'bank_loan'
+X = df.drop(columns=[target_col])
+y = df[target_col]
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+
+y_pred = model.predict(X_test)
+
+print("\nModel training complete!")
+print(f"Number of features: {X_train.shape[1]}")
+
+
+acc = accuracy_score(y_test, y_pred)
+print(f"Classification Accuracy: {acc:.4f}")
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+
+protected_attr = 'sex' 
+
+
+from sklearn.metrics import precision_score
+from fairlearn.metrics import MetricFrame, selection_rate, true_positive_rate
+
+# Extract sensitive feature from test set
+sensitive_test = X_test[protected_attr]
+
+# Create MetricFrame to evaluate per group
+metrics = {
+    'TPR': true_positive_rate,
+    'Selection Rate': selection_rate,
+    'Precision': precision_score
+}
+
+mf = MetricFrame(metrics=metrics, y_true=y_test, y_pred=y_pred, sensitive_features=sensitive_test)
+print("Metrics by group:\n", mf.by_group)
+
+
+
+
+# 1. Equal Opportunity Difference
+equal_opp_diff = mf.difference(method='between_groups')['TPR']
+
+# 2. Disparate Impact Ratio (80% rule)
+dir_ratio = mf.ratio(method='between_groups')['Selection Rate']
+
+# 3. Predictive Parity Difference
+predictive_parity_diff = mf.difference(method='between_groups')['Precision']
+
+print("\nFairness Metrics:")
+print(f"Equal Opportunity Difference: {equal_opp_diff:.4f}")
+print(f"Disparate Impact Ratio: {dir_ratio:.4f}")
+print(f"Predictive Parity Difference: {predictive_parity_diff:.4f}")
+
+# Optional threshold check
+if dir_ratio < 0.8:
+    print("Model may violate the 80% fairness rule (DIR < 0.8).")

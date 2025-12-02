@@ -1,0 +1,80 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression as SklearnLogisticRegression
+from sklearn.metrics import accuracy_score
+import warnings
+
+# Import the DP model
+from diffprivlib.models import LogisticRegression as DPLogisticRegression
+
+# Suppress warnings for cleaner output (DP-models can be chatty)
+warnings.filterwarnings('ignore')
+
+print("Libraries imported successfully.")
+
+
+iris = load_iris()
+X = iris.data
+y = iris.target
+
+
+
+# You MUST scale your data for most DP algorithms to work correctly.
+# This bounds the data, which is essential for calculating sensitivity.
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print(f"Data prepared: {X_train_scaled.shape[0]} training samples, {X_test_scaled.shape[0]} test samples.")
+
+
+
+# This is your "Epsilon = infinity" (no privacy) benchmark
+baseline_model = SklearnLogisticRegression(max_iter=1000)
+baseline_model.fit(X_train_scaled, y_train)
+baseline_accuracy = baseline_model.score(X_test_scaled, y_test)
+
+print(f"\nBaseline (Non-Private) Accuracy: {baseline_accuracy * 100:.2f}%")
+
+
+epsilon_values = [0.01, 0.1, 0.5, 1.0, 5.0, 10.0]
+dp_accuracies = []
+print(f"\nStarting DP experiment for epsilon values: {epsilon_values}")
+
+
+
+for epsilon in epsilon_values:
+    # Create the Differentially Private Logistic Regression model
+    # We pass epsilon directly to it.
+    dp_model = DPLogisticRegression(epsilon=epsilon, max_iter=1000)
+    dp_model.fit(X_train_scaled, y_train)
+    accuracy = dp_model.score(X_test_scaled, y_test)
+    dp_accuracies.append(accuracy)
+    print(f"  Epsilon = {epsilon:5.2f} | Accuracy = {accuracy * 100:.2f}%")
+print("Experiment complete.")
+
+
+plt.figure(figsize=(10, 6))
+
+# Plot the accuracy for each epsilon value
+plt.plot(epsilon_values, dp_accuracies, marker='o', linestyle='-', label='DP-Logistic Regression')
+
+# Plot the non-private baseline as a horizontal line
+plt.axhline(y=baseline_accuracy, color='r', linestyle='--',
+            label=f'Baseline (No DP) Accuracy: {baseline_accuracy*100:.2f}%')
+
+# Add labels and title
+plt.title('Privacy-Accuracy Trade-off on Iris Dataset')
+plt.xlabel('Epsilon (Privacy Budget)')
+plt.ylabel('Model Accuracy')
+# Use a log scale for the x-axis to see the effect of small epsilons better
+plt.xscale('log')
+plt.legend()
+plt.grid(True, which="both", ls="--")
+
+# Show the plot
+print("\nDisplaying plot...")
+plt.show()

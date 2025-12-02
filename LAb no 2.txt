@@ -1,0 +1,58 @@
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+
+df = pd.read_csv("biased_gender_loans.csv")
+df.head()
+
+
+X = df[["salary", "years_exp"]]
+y = df["bank_loan"]
+sensitive = df["sex"]
+
+
+# Encode target and sensitive attribute
+y = LabelEncoder().fit_transform(y)       # Yes/No → 1/0
+sensitive = LabelEncoder().fit_transform(sensitive) # Man/Woman → 1/0
+
+# Split dataset
+X_train, X_test, y_train, y_test, sens_train, sens_test = train_test_split(
+    X, y, sensitive, test_size=0.3, random_state=42
+)
+
+
+
+clf = LogisticRegression(max_iter=1000)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+
+
+accuracy = accuracy_score(y_test, y_pred)
+print("Model Accuracy:", accuracy)
+
+
+y_pred_binary = y_pred
+
+parity_rates = {}
+for group in np.unique(sens_test):
+    idx = sens_test == group
+    parity_rates[group] = np.mean(y_pred_binary[idx])
+
+print("Demographic Parity Rates:", parity_rates)
+
+dp_diff = max(parity_rates.values()) - min(parity_rates.values())
+print("Demographic Parity Difference:", dp_diff)
+
+
+import matplotlib.pyplot as plt
+plt.bar(["Male", "Female"], parity_rates.values(), color=["blue", "pink"])
+plt.title("Demographic Parity by Gender")
+plt.ylabel("P(Predicted Loan = Yes)")
+plt.show()

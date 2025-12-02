@@ -1,0 +1,39 @@
+import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
+
+df = pd.read_csv("/content/sample_data/biased_gender_loans.csv")
+df.head(5)
+
+women_loans = df[df['sex'] == 'Woman']
+men_loans = df[df['sex'] == 'Man']
+
+sns.kdeplot(men_loans['salary'], c = "r", label = "men")
+sns.kdeplot(women_loans['salary'], c = "b", label = "women")
+plt.legend()
+plt.title("Distribution of Salaries between Men and Women")
+
+men_loans_given = men_loans[men_loans['bank_loan'] == 'Yes']['bank_loan'].count()
+men_loans_not_given = men_loans[men_loans['bank_loan'] == 'No']['bank_loan'].count()
+women_loans_given = women_loans[women_loans['bank_loan'] == 'Yes']['bank_loan'].count()
+women_loans_not_given = women_loans[women_loans['bank_loan'] == 'No']['bank_loan'].count()
+
+data = {
+    'Loan Status': ['Loan Given', 'Loan Not Given'] * 2,
+    'Count': [men_loans_given, men_loans_not_given, women_loans_given, women_loans_not_given],
+    'Gender': ['Men'] * 2 + ['Women'] * 2
+}
+
+df = pd.DataFrame(data)
+
+sns.barplot(data=df, x='Loan Status', y='Count', hue='Gender')
+plt.show()
+
+
+w_loans_given = women_loans[women_loans['bank_loan'] == 'Yes']
+m_loans_given = men_loans[men_loans['bank_loan'] == 'Yes']
+
+
+sns.kdeplot(w_loans_given['salary'], c = 'b', label = 'Women')
+sns.kdeplot(m_loans_given['salary'], c = 'r', label = 'Men')
+plt.legend()

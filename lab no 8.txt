@@ -1,0 +1,25 @@
+import pandas as pd
+import numpy as np
+
+
+df = pd.read_csv(r"C:\Users\Tuf_F15\Desktop\college PDF\4th-SEM7\AIE\LABS\biased_gender_loans.csv")
+
+def add_laplace_noise(value, sensitivity, epsilon):
+  b = sensitivity / epsilon
+  noise = np.random.laplace(loc=0, scale=b)
+  return value + noise
+
+
+column_to_count = 'years_exp'
+
+true_count = (df[column_to_count] > 20).sum()
+
+sensitivity = 1
+
+epsilon = 1.0
+
+noisy_count = add_laplace_noise(true_count, sensitivity, epsilon)
+
+
+print(f"True count of '{column_to_count}': {true_count}")
+print(f"Noisy count of '{column_to_count}' (epsilon={epsilon}): {noisy_count}")

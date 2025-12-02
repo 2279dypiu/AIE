@@ -1,0 +1,118 @@
+import numpy as np
+import pandas as pd
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+
+
+print("--- 1. Loading and Splitting Data ---")
+# Load the Iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+X_target, X_shadow, y_target, y_shadow = train_test_split(
+    X, y, test_size=0.5, random_state=42, stratify=y
+)
+X_target_train, X_target_test, y_target_train, y_target_test = train_test_split(
+    X_target, y_target, test_size=0.5, random_state=42, stratify=y_target
+)
+X_shadow_train, X_shadow_test, y_shadow_train, y_shadow_test = train_test_split(
+    X_shadow, y_shadow, test_size=0.5, random_state=42, stratify=y_shadow
+)
+# Note: The Iris dataset is very small (150 rows).
+# This means each of our 4 datasets has only ~37 samples.
+# An attack on a real, large dataset would be much more effective.
+print(f"Target Train (Members) shape: {X_target_train.shape}")
+print(f"Target Test (Non-Members) shape: {X_target_test.shape}")
+print(f"Shadow Train shape: {X_shadow_train.shape}")
+print(f"Shadow Test shape: {X_shadow_test.shape}\n")
+
+
+
+print("--- 2. Training Target Model (Victim) ---")
+# This is the model we are trying to attack.
+# It is only trained on its *own* training data.
+target_model = LogisticRegression(max_iter=1000, random_state=42)
+target_model.fit(X_target_train, y_target_train)
+print("Target model trained.\n")
+
+
+
+
+print("--- 3. Training Shadow Model (Attacker's Simulator) ---")
+# The attacker trains this model to create a dataset to train their *attack* model.
+# It's trained on separate, "shadow" data.
+shadow_model = LogisticRegression(max_iter=1000, random_state=42)
+shadow_model.fit(X_shadow_train, y_shadow_train)
+print("Shadow model trained.\n")
+
+
+
+print("--- 4. Creating Training Set for Attack Model ---")
+# We use the SHADOW model to build a dataset for our ATTACK model.
+# We get its confidence scores for data it *was* trained on (members)...
+shadow_train_proba = shadow_model.predict_proba(X_shadow_train)
+shadow_train_labels = np.ones(len(X_shadow_train))  # Label = 1 (is_member)
+
+# ...and for data it *was not* trained on (non-members).
+shadow_test_proba = shadow_model.predict_proba(X_shadow_test)
+shadow_test_labels = np.zeros(len(X_shadow_test))   # Label = 0 (is_not_member)
+
+# Combine these to create the training set for the attack model
+X_attack_train = np.concatenate((shadow_train_proba, shadow_test_proba), axis=0)
+y_attack_train = np.concatenate((shadow_train_labels, shadow_test_labels), axis=0)
+
+print(f"Attack training data (X) shape: {X_attack_train.shape}")
+print(f"Attack training labels (y) shape: {y_attack_train.shape}\n")
+
+
+
+
+print("--- 5. Training the Attack Model ---")
+# This model learns to distinguish between a "member" confidence
+# vector and a "non-member" confidence vector.
+attack_model = LogisticRegression(random_state=42)
+attack_model.fit(X_attack_train, y_attack_train)
+print("Attack model trained.\n")
+
+print("--- 6. Running and Evaluating the Attack ---")
+# This is the REAL test. We use our trained attack_model to
+# predict membership in the *original target_model*.
+
+# First, we get the confidence scores from the TARGET model
+# for its *known members*...
+target_train_proba = target_model.predict_proba(X_target_train)
+target_train_labels = np.ones(len(X_target_train)) # Label = 1
+
+# ...and for its *known non-members*.
+target_test_proba = target_model.predict_proba(X_target_test)
+target_test_labels = np.zeros(len(X_target_test))  # Label = 0
+
+# Combine these to create the *attack test set*.
+# This data has *never* been seen by the attack_model.
+X_attack_test = np.concatenate((target_train_proba, target_test_proba), axis=0)
+y_attack_test_actual = np.concatenate((target_train_labels, target_test_labels), axis=0)
+
+# Run the attack!
+y_attack_test_pred = attack_model.predict(X_attack_test)
+y_attack_test_pred_proba = attack_model.predict_proba(X_attack_test)[:, 1]
+
+
+
+
+
+
+
+print("--- 7. Attack Results ---")
+accuracy = accuracy_score(y_attack_test_actual, y_attack_test_pred)
+auc = roc_auc_score(y_attack_test_actual, y_attack_test_pred_proba)
+
+print(f"Attack Accuracy: {accuracy * 100:.2f}%")
+print(f"Attack AUC: {auc:.4f}\n")
+
+print("A 'random guess' attack would have 50% accuracy.")
+print("The closer this is to 100%, the more successful the attack.")
+print("\nClassification Report for the Attack:")
+print(classification_report(y_attack_test_actual, y_attack_test_pred, target_names=["Non-Member (0)", "Member (1)"]))
+

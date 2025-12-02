@@ -1,0 +1,57 @@
+import pandas as pd
+import numpy as anp
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report, accuracy_score
+import shap
+shap.initjs()   # for interactive visualizations
+
+
+df = pd.read_csv(r"C:\Users\Tuf_F15\Desktop\college PDF\4th-SEM7\AIE\LABS\UCI_Adult_Income.csv")
+df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+print("Dataset shape:", df.shape)
+print(df.head())
+
+
+df.columns = df.columns.str.strip()
+for col in df.select_dtypes(include=['object']).columns:
+    df[col] = df[col].str.strip()
+df = df[(df != '?').all(axis=1)]
+print("After cleaning:", df.shape)
+
+
+
+
+categorical_cols = df.select_dtypes(include=['object']).columns
+le = LabelEncoder()
+for col in categorical_cols:
+    df[col] = le.fit_transform(df[col])
+print(df.head())
+
+
+X = df.drop('class', axis=1)
+y = df['class']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+
+model = DecisionTreeClassifier(max_depth=5, random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_test)
+shap_values_class_1 = shap_values[:, :, 1]
+print(f"Original 3D SHAP array shape: {shap_values.shape}")
+print(f"Sliced 2D SHAP array for Class 1 shape: {shap_values_class_1.shape}")
+print(f"X_test shape: {X_test.shape}")
+print("Displaying SHAP Beeswarm Plot for Class 1...")
+shap.summary_plot(shap_values_class_1, X_test)
+print("Displaying SHAP Bar Plot for Class 1...")
+shap.summary_plot(shap_values_class_1, X_test, plot_type="bar")
+
